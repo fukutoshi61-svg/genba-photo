@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>現場写真管理</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000}
+body{font-family:'Hiragino Sans','Meiryo',sans-serif;background:#f0f2f5}
+.app{display:flex;flex-direction:column;width:100%;height:100%;height:100dvh;overflow:hidden}
+.header{background:#1a3a6b;color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0}
+.header h1{font-size:14px;font-weight:700}
+.sync-badge{font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(255,255,255,0.2);color:#fff}
+.sync-badge.ok{background:rgba(100,220,130,0.3)}
+.sync-badge.err{background:rgba(255,100,100,0.3)}
+.tabbar{display:flex;background:#fff;border-bottom:1px solid #dde1e7;flex-shrink:0}
+.tabbar-btn{flex:1;padding:10px 0;font-size:13px;font-weight:500;color:#888;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent}
+.tabbar-btn.active{color:#1a3a6b;border-bottom-color:#1a3a6b}
+.page{display:none;flex:1;flex-direction:column;overflow:hidden}
+.page.active{display:flex}
+.site-search-wrap{padding:10px 12px;border-bottom:1px solid #eee;position:relative;flex-shrink:0}
+.site-search-wrap span{position:absolute;left:20px;top:50%;transform:translateY(-50%);font-size:13px;color:#aaa}
+.site-search-wrap input{width:100%;padding:7px 8px 7px 30px;font-size:13px;border:1px solid #dde1e7;border-radius:8px;background:#f6f8fa;outline:none}
+.site-list{flex:1;overflow-y:auto;padding:6px}
+.site-item{padding:10px 10px 10px 12px;border-radius:8px;cursor:pointer;font-size:14px;color:#555;display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.site-item:hover,.site-item:active{background:#f0f4ff}
+.site-item:hover .site-del{opacity:1}
+.site-item.active{background:#e8eeff;color:#1a3a6b;font-weight:600}
+.site-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.site-count{font-size:11px;background:#eee;border-radius:10px;padding:2px 8px;color:#888;flex-shrink:0}
+.site-del{opacity:0;background:none;border:none;cursor:pointer;color:#bbb;font-size:15px;padding:2px 6px;flex-shrink:0}
+.site-del:hover{color:#c00}
+.no-results{font-size:13px;color:#aaa;padding:16px;text-align:center}
+.site-add-bar{padding:10px 12px;border-top:1px solid #eee;display:flex;gap:8px;flex-shrink:0}
+.site-add-bar input{flex:1;font-size:13px;padding:8px 10px;border:1px solid #dde1e7;border-radius:8px;outline:none}
+.site-add-bar input:focus{border-color:#1a3a6b}
+.site-add-bar button{font-size:13px;padding:8px 14px;background:#1a3a6b;color:#fff;border:none;border-radius:8px;cursor:pointer;white-space:nowrap}
+.photo-header{padding:10px 14px;background:#fff;border-bottom:1px solid #dde1e7;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0}
+.photo-title{font-size:14px;font-weight:700;color:#1a3a6b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.photo-header-btns{display:flex;gap:6px;flex-shrink:0}
+.add-btn{padding:7px 14px;font-size:12px;border-radius:7px;border:none;cursor:pointer;background:#1a3a6b;color:#fff;font-weight:500}
+.select-btn{padding:7px 12px;font-size:12px;border-radius:7px;border:1px solid #dde1e7;cursor:pointer;background:#f6f8fa;color:#555;font-weight:500}
+.select-btn.active{background:#fff0f0;color:#a32d2d;border-color:#f5b8b8}
+.select-bar{display:none;padding:8px 14px;background:#fff3f3;border-bottom:1px solid #f5b8b8;align-items:center;justify-content:space-between;flex-shrink:0}
+.select-bar.show{display:flex}
+.select-bar-left{font-size:13px;color:#a32d2d;font-weight:500}
+.select-bar-btns{display:flex;gap:6px}
+.sel-all-btn{font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid #f5b8b8;cursor:pointer;background:#fff;color:#a32d2d}
+.del-sel-btn{font-size:12px;padding:5px 12px;border-radius:6px;border:none;cursor:pointer;background:#a32d2d;color:#fff;font-weight:500}
+.del-sel-btn:disabled{background:#ccc;cursor:not-allowed}
+.stage-tabs{display:flex;gap:4px;padding:8px 12px;background:#fff;border-bottom:1px solid #dde1e7;flex-shrink:0;overflow-x:auto}
+.stage-tab{font-size:12px;padding:4px 12px;border-radius:20px;border:1px solid #dde1e7;cursor:pointer;color:#666;background:#f6f8fa;white-space:nowrap}
+.stage-tab.active{background:#1a3a6b;color:#fff;border-color:#1a3a6b}
+.stage-tab-count{font-size:10px;margin-left:3px;opacity:0.75}
+.grid{flex:1;overflow-y:auto;padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;align-content:start}
+.photo-card{border-radius:10px;border:1px solid #dde1e7;overflow:hidden;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,0.06);position:relative}
+.photo-card.selected{border:2.5px solid #a32d2d;box-shadow:0 0 0 3px rgba(163,45,45,0.15)}
+.photo-check{display:none;position:absolute;top:6px;left:6px;width:26px;height:26px;border-radius:50%;background:#fff;border:2px solid #ccc;align-items:center;justify-content:center;font-size:14px;z-index:2;cursor:pointer}
+.select-mode .photo-check{display:flex}
+.photo-card.selected .photo-check{background:#a32d2d;border-color:#a32d2d;color:#fff}
+.thumb{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;cursor:pointer}
+.thumb-placeholder{width:100%;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;background:#f0f2f5;color:#ccc;font-size:32px;cursor:pointer}
+.photo-meta{padding:6px 8px}
+.photo-name{font-size:11px;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.photo-date{font-size:10px;color:#aaa;margin-top:2px}
+.stage-badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:10px;margin-top:4px;font-weight:500}
+.badge-before{background:#deeeff;color:#1a5a9b}
+.badge-during{background:#fff0dd;color:#8a5000}
+.badge-after{background:#dff5e4;color:#1a6b35}
+.del-btn{font-size:10px;color:#bbb;border:none;background:none;cursor:pointer;padding:2px 0;margin-top:2px;display:block}
+.del-btn:hover{color:#c00}
+.select-mode .del-btn{display:none}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#bbb;font-size:13px;height:200px;grid-column:1/-1}
+.no-site-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#bbb;font-size:14px;gap:10px}
+.lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:100;align-items:center;justify-content:center;flex-direction:column;gap:14px}
+.lightbox.open{display:flex}
+.lightbox img{max-width:96vw;max-height:85dvh;object-fit:contain;border-radius:8px}
+.lb-info{color:#fff;font-size:13px;text-align:center;padding:0 20px}
+.lb-close{color:#fff;font-size:13px;cursor:pointer;padding:8px 22px;border:1px solid rgba(255,255,255,0.35);border-radius:8px}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:50;align-items:flex-end;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:16px 16px 0 0;padding:20px 20px 32px;width:100%;max-width:500px;max-height:90dvh;overflow-y:auto}
+.modal h3{font-size:16px;font-weight:700;margin-bottom:16px;color:#1a3a6b}
+.modal label{font-size:12px;color:#555;display:block;margin-bottom:4px;margin-top:12px;font-weight:500}
+.modal input[type=text]{width:100%;font-size:14px;padding:9px 10px;border:1px solid #dde1e7;border-radius:8px;outline:none}
+.modal input[type=text]:focus{border-color:#1a3a6b}
+.stage-btns{display:flex;gap:6px;margin-bottom:4px}
+.stage-btn{flex:1;padding:9px 0;font-size:13px;border-radius:8px;border:1px solid #dde1e7;cursor:pointer;background:#f6f8fa;color:#666;font-weight:500}
+.stage-btn.sel-before{background:#deeeff;color:#1a5a9b;border-color:#9dc5ee}
+.stage-btn.sel-during{background:#fff0dd;color:#8a5000;border-color:#f5c47a}
+.stage-btn.sel-after{background:#dff5e4;color:#1a6b35;border-color:#90d4a0}
+.modal-actions{display:flex;gap:8px;margin-top:18px}
+.modal-actions button{flex:1;font-size:14px;padding:10px 0;border-radius:8px;border:1px solid #dde1e7;cursor:pointer;background:#f6f8fa;color:#333;font-weight:500}
+.btn-primary{background:#1a3a6b!important;color:#fff!important;border-color:#1a3a6b!important}
+.btn-danger{background:#fff0f0!important;color:#a32d2d!important;border-color:#f5b8b8!important}
+.section-label{font-size:12px;font-weight:700;color:#1a3a6b;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #e8eeff}
+
+/* ── カメラ：完全全画面（横向き含む） ── */
+.camera-screen{
+  display:none;
+  position:fixed;
+  top:0;left:0;right:0;bottom:0;
+  width:100%;
+  height:100%;
+  z-index:9999;
+  background:#000;
+  flex-direction:column;
+  /* iOSのSafariアドレスバーを無視して全画面 */
+}
+.camera-screen.open{display:flex}
+
+/* 映像エリア：残り全部 */
+.camera-wrap{
+  position:relative;
+  flex:1;
+  overflow:hidden;
+  width:100%;
+  min-height:0;
+}
+#cameraVideo{
+  position:absolute;
+  top:0;left:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+/* 横向き時にカメラが全画面になるよう強制 */
+@media screen and (orientation:landscape){
+  .camera-screen.open{
+    flex-direction:row;
+  }
+  .cam-bottom{
+    width:140px;
+    flex-direction:column;
+    justify-content:space-between;
+    padding:0;
+  }
+  .size-bar{
+    flex-direction:column;
+    padding:12px 10px 6px;
+    gap:6px;
+    align-items:stretch;
+  }
+  .size-bar input[type=range]{
+    writing-mode:vertical-lr;
+    direction:rtl;
+    width:28px;
+    height:80px;
+    align-self:center;
+  }
+  .camera-controls{
+    flex-direction:column;
+    align-items:center;
+    padding:12px 10px 24px;
+    gap:12px;
+  }
+  .cam-count{min-width:auto;text-align:center}
+  .cam-close{min-width:auto;text-align:center;padding:0}
+}
+
+/* 看板：絶対配置・制限なしで自由移動 */
+.kanban-drag{
+  position:absolute;
+  z-index:10;
+  cursor:grab;
+  touch-action:none;
+  user-select:none;
+  /* 初期位置 */
+  top:10px;
+  left:10px;
+  width:30vw;
+  min-width:80px;
+  max-width:400px;
+}
+.kanban-drag:active{cursor:grabbing}
+.kanban-inner{
+  background:#1a6b35;
+  border:2.5px solid #fff;
+  border-radius:4px;
+  box-shadow:0 2px 12px rgba(0,0,0,0.6);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  aspect-ratio:1/1;
+}
+.kanban-top{display:flex;flex:2}
+.kanban-cell{flex:1;border-right:1px solid rgba(255,255,255,0.35);border-bottom:1px solid rgba(255,255,255,0.35);padding:3px 4px;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+.kanban-cell:last-child{border-right:none}
+.kanban-cell-label{font-size:8px;color:rgba(255,255,255,0.7);line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kanban-cell-val{font-size:10px;color:#fff;font-weight:700;line-height:1.3;word-break:break-all}
+.kanban-stage{flex:3;display:flex;align-items:center;justify-content:center;border-bottom:1px solid rgba(255,255,255,0.35);padding:2px}
+.kanban-stage-text{font-size:26px;font-weight:900;color:#fff;letter-spacing:0.05em;text-align:center;word-break:break-all;line-height:1.1}
+.kanban-bottom{flex:1.2;display:flex;justify-content:space-between;align-items:center;padding:2px 5px}
+.kanban-company{font-size:8px;color:rgba(255,255,255,0.85);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%}
+.kanban-date{font-size:8px;color:rgba(255,255,255,0.85);white-space:nowrap}
+
+/* 操作バー */
+.cam-bottom{background:rgba(0,0,0,0.85);flex-shrink:0;padding-bottom:env(safe-area-inset-bottom,0px)}
+.size-bar{display:flex;align-items:center;gap:8px;padding:8px 20px 4px}
+.size-bar label{color:#aaa;font-size:11px;white-space:nowrap}
+.size-bar input[type=range]{flex:1;accent-color:#1a6b35}
+.size-bar span{color:#fff;font-size:11px;min-width:36px;text-align:right}
+.camera-controls{display:flex;align-items:center;justify-content:space-between;padding:8px 28px 16px;gap:10px}
+.shutter-btn{width:70px;height:70px;border-radius:50%;background:#fff;border:5px solid #aaa;cursor:pointer;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+.shutter-btn:active{background:#ddd;transform:scale(0.92)}
+.cam-count{color:#fff;font-size:13px;min-width:70px}
+.cam-close{color:#fff;font-size:14px;cursor:pointer;min-width:70px;text-align:right;padding:8px 0;font-weight:600}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>📷 現場写真管理</h1>
+    <span class="sync-badge" id="syncBadge">接続中...</span>
+  </div>
+  <div class="tabbar">
+    <button class="tabbar-btn active" id="tab-sites" onclick="showTab('sites')">現場一覧</button>
+    <button class="tabbar-btn" id="tab-photos" onclick="showTab('photos')">写真</button>
+  </div>
+
+  <div class="page active" id="page-sites">
+    <div class="site-search-wrap">
+      <span>🔍</span>
+      <input type="text" id="siteSearch" placeholder="現場名で検索..." oninput="renderSites()">
+    </div>
+    <div class="site-list" id="siteList"></div>
+    <div class="site-add-bar">
+      <input type="text" id="newSiteName" placeholder="現場名を入力...">
+      <button onclick="addSite()">＋ 追加</button>
+    </div>
+  </div>
+
+  <div class="page" id="page-photos">
+    <div class="photo-header">
+      <span class="photo-title" id="photoTitle">現場を選択してください</span>
+      <div class="photo-header-btns">
+        <button class="select-btn" id="selectModeBtn" style="display:none" onclick="toggleSelectMode()">☑ 選択</button>
+        <button class="add-btn" id="uploadLabel" style="display:none" onclick="openUploadModal()">📷 追加</button>
+      </div>
+    </div>
+    <div class="select-bar" id="selectBar">
+      <span class="select-bar-left" id="selectCount">0枚選択中</span>
+      <div class="select-bar-btns">
+        <button class="sel-all-btn" onclick="selectAll()">すべて選択</button>
+        <button class="del-sel-btn" id="delSelBtn" onclick="deleteSelected()" disabled>🗑 削除</button>
+      </div>
+    </div>
+    <div class="stage-tabs" id="stageTabs" style="display:none">
+      <div class="stage-tab active" data-stage="all" onclick="setStage('all')">すべて<span class="stage-tab-count" id="cnt-all"></span></div>
+      <div class="stage-tab" data-stage="before" onclick="setStage('before')">施工前<span class="stage-tab-count" id="cnt-before"></span></div>
+      <div class="stage-tab" data-stage="during" onclick="setStage('during')">施工中<span class="stage-tab-count" id="cnt-during"></span></div>
+      <div class="stage-tab" data-stage="after" onclick="setStage('after')">施工後<span class="stage-tab-count" id="cnt-after"></span></div>
+    </div>
+    <div class="grid" id="photoGrid">
+      <div class="no-site-msg"><div style="font-size:40px">👈</div><span>現場一覧から現場を選んでください</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="closeLb()">
+  <img id="lbImg" src="" alt="">
+  <div class="lb-info" id="lbInfo"></div>
+  <span class="lb-close">閉じる</span>
+</div>
+
+<div class="modal-overlay" id="uploadModal">
+  <div class="modal">
+    <h3>📷 写真を追加</h3>
+    <label>工程を選択</label>
+    <div class="stage-btns">
+      <button class="stage-btn sel-before" id="btn-before" onclick="selectStage('before')">施工前</button>
+      <button class="stage-btn" id="btn-during" onclick="selectStage('during')">施工中</button>
+      <button class="stage-btn" id="btn-after" onclick="selectStage('after')">施工後</button>
+    </div>
+    <div class="section-label">📋 工事看板の内容</div>
+    <label>工事件名</label>
+    <input type="text" id="kb_koujimei">
+    <label>工事場所</label>
+    <input type="text" id="kb_basho">
+    <label>看板中央テキスト</label>
+    <input type="text" id="kb_chuo">
+    <label>会社名</label>
+    <input type="text" id="kb_company">
+    <div class="modal-actions">
+      <button onclick="closeUploadModal()">キャンセル</button>
+      <button class="btn-primary" onclick="startCamera()">📷 カメラ起動</button>
+    </div>
+    <div style="margin-top:10px">
+      <button style="width:100%;font-size:13px;padding:10px 0;border:1px solid #dde1e7;border-radius:8px;cursor:pointer;background:#f6f8fa;color:#555" onclick="triggerLibrary()">🖼 ライブラリから選択（看板なし）</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <h3>現場を削除</h3>
+    <p style="font-size:14px;color:#555;margin-bottom:16px;line-height:1.7" id="deleteModalMsg"></p>
+    <div class="modal-actions">
+      <button onclick="closeDeleteModal()">キャンセル</button>
+      <button class="btn-danger" onclick="confirmDeleteSite()">🗑 削除する</button>
+    </div>
+  </div>
+</div>
+
+<!-- カメラ画面 -->
+<div class="camera-screen" id="cameraScreen">
+  <div class="camera-wrap" id="cameraWrap">
+    <video id="cameraVideo" autoplay playsinline muted></video>
+    <div class="kanban-drag" id="kanbanDrag">
+      <div class="kanban-inner" id="kanbanInner"></div>
+    </div>
+  </div>
+  <div class="cam-bottom">
+    <div class="size-bar">
+      <label>看板サイズ</label>
+      <input type="range" id="kanbanSize" min="10" max="80" value="30" oninput="resizeKanban(this.value)">
+      <span id="kanbanSizeVal">30%</span>
+    </div>
+    <div class="camera-controls">
+      <div class="cam-count" id="camCount">0枚撮影</div>
+      <button class="shutter-btn" onclick="shootPhoto()" aria-label="撮影"></button>
+      <span class="cam-close" onclick="stopCamera()">完了</span>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="libraryInput" accept="image/*" multiple style="display:none" onchange="handleLibrary(this)">
+<canvas id="shootCanvas" style="display:none"></canvas>
+<canvas id="compCanvas" style="display:none"></canvas>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBkBg4K7xpskqLVNTPVcSWM5Juryof4wEU",
+  authDomain: "syasinkanri-a6550.firebaseapp.com",
+  projectId: "syasinkanri-a6550",
+  storageBucket: "syasinkanri-a6550.firebasestorage.app",
+  messagingSenderId: "567734638992",
+  appId: "1:567734638992:web:447b0b07a83d5fcf57fb15"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const STAGE_LABELS={before:'施工前',during:'施工中',after:'施工後'};
+const STAGE_CLASSES={before:'badge-before',during:'badge-during',after:'badge-after'};
+const MAX_SIZE=1280,QUALITY=0.70;
+let sites=[],photos=[],activeSite=null,activeStage='all',pendingStage='before',deletingId=null,camCount=0,stream=null;
+let selectMode=false,selectedIds=new Set();
+
+function setSyncBadge(s){
+  const b=document.getElementById('syncBadge');
+  if(s==='ok'){b.textContent='✓ 同期済み';b.className='sync-badge ok';}
+  else if(s==='err'){b.textContent='⚠ エラー';b.className='sync-badge err';}
+  else{b.textContent='接続中...';b.className='sync-badge';}
+}
+onSnapshot(collection(db,'sites'),snap=>{sites=snap.docs.map(d=>d.data());renderSites();setSyncBadge('ok');},()=>setSyncBadge('err'));
+onSnapshot(collection(db,'photos'),snap=>{photos=snap.docs.map(d=>d.data());renderSites();if(activeSite)renderGrid();setSyncBadge('ok');},()=>setSyncBadge('err'));
+
+window.showTab=function(tab){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tabbar-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+tab).classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+};
+
+function compressImage(src,cb){
+  const img=new Image();
+  img.onload=()=>{
+    let w=img.width,h=img.height;
+    if(w>MAX_SIZE||h>MAX_SIZE){if(w>h){h=Math.round(h*MAX_SIZE/w);w=MAX_SIZE;}else{w=Math.round(w*MAX_SIZE/h);h=MAX_SIZE;}}
+    const c=document.getElementById('compCanvas');c.width=w;c.height=h;
+    c.getContext('2d').drawImage(img,0,0,w,h);cb(c.toDataURL('image/jpeg',QUALITY));
+  };img.src=src;
+}
+
+function renderSites(){
+  const q=document.getElementById('siteSearch').value.trim().toLowerCase();
+  const filtered=q?sites.filter(s=>s.name.toLowerCase().includes(q)):sites;
+  const el=document.getElementById('siteList');
+  if(!filtered.length){el.innerHTML=`<div class="no-results">${q?`「${q}」は見つかりません`:'現場を追加してください'}</div>`;return;}
+  el.innerHTML=filtered.map(s=>{
+    const cnt=photos.filter(p=>p.siteId===s.id).length;
+    return`<div class="site-item${activeSite===s.id?' active':''}" onclick="selectSite('${s.id}')">
+      <span class="site-name">${s.name}</span><span class="site-count">${cnt}</span>
+      <button class="site-del" onclick="openDeleteModal(event,'${s.id}')" title="削除">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+window.selectSite=function(id){
+  activeSite=id;activeStage='all';exitSelectMode();
+  const s=sites.find(x=>x.id===id);
+  document.getElementById('photoTitle').textContent=s?s.name:'';
+  document.getElementById('uploadLabel').style.display='';
+  document.getElementById('selectModeBtn').style.display='';
+  document.getElementById('stageTabs').style.display='';
+  renderSites();renderTabs();renderGrid();
+  window.showTab('photos');
+};
+function renderTabs(){
+  if(!activeSite)return;
+  const all=photos.filter(p=>p.siteId===activeSite);
+  document.getElementById('cnt-all').textContent=all.length?' ('+all.length+')':'';
+  ['before','during','after'].forEach(s=>{const n=all.filter(p=>p.stage===s).length;document.getElementById('cnt-'+s).textContent=n?' ('+n+')':'';});
+  document.querySelectorAll('.stage-tab').forEach(t=>t.classList.toggle('active',t.dataset.stage===activeStage));
+}
+window.setStage=function(s){activeStage=s;exitSelectMode();renderTabs();renderGrid();};
+function renderGrid(){
+  const el=document.getElementById('photoGrid');
+  if(!activeSite){el.innerHTML='<div class="no-site-msg"><div style="font-size:40px">👈</div><span>現場一覧から現場を選んでください</span></div>';return;}
+  let list=photos.filter(p=>p.siteId===activeSite);
+  if(activeStage!=='all')list=list.filter(p=>p.stage===activeStage);
+  if(selectMode)el.classList.add('select-mode');else el.classList.remove('select-mode');
+  if(!list.length){el.innerHTML=`<div class="empty"><div style="font-size:40px">🖼</div><span>写真がありません</span></div>`;return;}
+  el.innerHTML=list.map(p=>{
+    const sel=selectedIds.has(p.id);
+    return`<div class="photo-card${sel?' selected':''}" id="card-${p.id}">
+      <div class="photo-check" onclick="toggleSelect('${p.id}')">${sel?'✓':''}</div>
+      ${p.src?`<img class="thumb" src="${p.src}" alt="${p.name}" onclick="onCardClick('${p.id}')">`:
+        `<div class="thumb-placeholder" onclick="onCardClick('${p.id}')">🖼</div>`}
+      <div class="photo-meta">
+        <div class="photo-name" title="${p.name}">${p.name}</div>
+        <div class="photo-date">${p.date}</div>
+        <span class="stage-badge ${STAGE_CLASSES[p.stage]||''}">${p.kanbanChuo||STAGE_LABELS[p.stage]||''}</span>
+        <button class="del-btn" onclick="deleteSinglePhoto('${p.id}')">🗑 削除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.toggleSelectMode=function(){if(selectMode)exitSelectMode();else enterSelectMode();};
+function enterSelectMode(){selectMode=true;selectedIds.clear();document.getElementById('selectModeBtn').classList.add('active');document.getElementById('selectModeBtn').textContent='✕ キャンセル';document.getElementById('selectBar').classList.add('show');updateSelectBar();renderGrid();}
+function exitSelectMode(){selectMode=false;selectedIds.clear();const btn=document.getElementById('selectModeBtn');if(btn){btn.classList.remove('active');btn.textContent='☑ 選択';}document.getElementById('selectBar').classList.remove('show');renderGrid();}
+window.toggleSelect=function(id){if(selectedIds.has(id))selectedIds.delete(id);else selectedIds.add(id);updateSelectBar();const card=document.getElementById('card-'+id);if(card){const sel=selectedIds.has(id);card.classList.toggle('selected',sel);card.querySelector('.photo-check').textContent=sel?'✓':'';}};
+window.selectAll=function(){let list=photos.filter(p=>p.siteId===activeSite);if(activeStage!=='all')list=list.filter(p=>p.stage===activeStage);list.forEach(p=>selectedIds.add(p.id));updateSelectBar();renderGrid();};
+function updateSelectBar(){const n=selectedIds.size;document.getElementById('selectCount').textContent=n+'枚選択中';document.getElementById('delSelBtn').disabled=n===0;}
+window.onCardClick=function(id){if(selectMode)window.toggleSelect(id);else openLb(id);};
+
+window.addSite=async function(){
+  const inp=document.getElementById('newSiteName'),name=inp.value.trim();
+  if(!name)return;
+  const s={id:'s'+Date.now(),name,createdAt:Date.now()};inp.value='';
+  await setDoc(doc(db,'sites',s.id),s);
+};
+
+window.openUploadModal=function(){
+  camCount=0;
+  const s=sites.find(x=>x.id===activeSite);
+  document.getElementById('kb_koujimei').value=s?s.name:'';
+  const chuo=document.getElementById('kb_chuo');
+  if(!chuo.value||Object.values(STAGE_LABELS).includes(chuo.value))chuo.value=STAGE_LABELS[pendingStage]||'施工前';
+  document.getElementById('uploadModal').classList.add('open');
+  selectStage(pendingStage);
+};
+window.closeUploadModal=function(){document.getElementById('uploadModal').classList.remove('open');};
+window.selectStage=function(s){
+  pendingStage=s;
+  ['before','during','after'].forEach(k=>{document.getElementById('btn-'+k).className='stage-btn'+(s===k?' sel-'+k:'');});
+  const chuo=document.getElementById('kb_chuo');
+  if(!chuo.value||Object.values(STAGE_LABELS).includes(chuo.value))chuo.value=STAGE_LABELS[s];
+  updateKanbanOverlay();
+};
+function getKanbanData(){
+  return{
+    koujimei:document.getElementById('kb_koujimei').value.trim(),
+    basho:document.getElementById('kb_basho').value.trim(),
+    chuo:document.getElementById('kb_chuo').value.trim()||STAGE_LABELS[pendingStage],
+    company:document.getElementById('kb_company').value.trim(),
+    date:new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit'})
+  };
+}
+function updateKanbanOverlay(){
+  const d=getKanbanData();
+  document.getElementById('kanbanInner').innerHTML=`
+    <div class="kanban-top">
+      <div class="kanban-cell"><div class="kanban-cell-label">工事件名</div><div class="kanban-cell-val">${d.koujimei||'―'}</div></div>
+      <div class="kanban-cell" style="border-right:none"><div class="kanban-cell-label">工事場所</div><div class="kanban-cell-val">${d.basho||'―'}</div></div>
+    </div>
+    <div class="kanban-stage"><div class="kanban-stage-text">${d.chuo}</div></div>
+    <div class="kanban-bottom"><span class="kanban-company">${d.company||''}</span><span class="kanban-date">${d.date}</span></div>`;
+}
+['kb_koujimei','kb_basho','kb_chuo','kb_company'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',updateKanbanOverlay);
+});
+
+window.resizeKanban=function(val){
+  const drag=document.getElementById('kanbanDrag');
+  drag.style.width=val+'vw';
+  document.getElementById('kanbanSizeVal').textContent=val+'%';
+};
+
+// ── ドラッグ：画面端まで移動（cameraWrapの範囲内） ──
+function initDrag(){
+  const el=document.getElementById('kanbanDrag');
+  const wrap=document.getElementById('cameraWrap');
+  let active=false,startX=0,startY=0,origLeft=0,origTop=0;
+
+  function clamp(val,min,max){return Math.max(min,Math.min(max,val));}
+
+  function startDrag(cx,cy){
+    active=true;
+    startX=cx;startY=cy;
+    origLeft=el.offsetLeft;
+    origTop=el.offsetTop;
+  }
+  function moveDrag(cx,cy){
+    if(!active)return;
+    const dx=cx-startX,dy=cy-startY;
+    const maxLeft=wrap.clientWidth-el.offsetWidth;
+    const maxTop=wrap.clientHeight-el.offsetHeight;
+    el.style.left=clamp(origLeft+dx,0,maxLeft)+'px';
+    el.style.top=clamp(origTop+dy,0,maxTop)+'px';
+  }
+  function endDrag(){active=false;}
+
+  el.addEventListener('mousedown',e=>{startDrag(e.clientX,e.clientY);e.preventDefault();});
+  window.addEventListener('mousemove',e=>{moveDrag(e.clientX,e.clientY);});
+  window.addEventListener('mouseup',endDrag);
+
+  el.addEventListener('touchstart',e=>{
+    const t=e.touches[0];startDrag(t.clientX,t.clientY);e.preventDefault();
+  },{passive:false});
+  window.addEventListener('touchmove',e=>{
+    if(!active)return;
+    const t=e.touches[0];moveDrag(t.clientX,t.clientY);e.preventDefault();
+  },{passive:false});
+  window.addEventListener('touchend',endDrag);
+}
+initDrag();
+
+window.startCamera=async function(){
+  window.closeUploadModal();
+  updateKanbanOverlay();
+  // 看板を左上にリセット
+  const drag=document.getElementById('kanbanDrag');
+  drag.style.left='10px';
+  drag.style.top='10px';
+  document.getElementById('kanbanSize').value=30;
+  window.resizeKanban(30);
+  camCount=0;
+  document.getElementById('camCount').textContent='0枚撮影';
+  const camScreen=document.getElementById('cameraScreen');
+  camScreen.classList.add('open');
+  try{
+    if(camScreen.requestFullscreen)await camScreen.requestFullscreen();
+    else if(camScreen.webkitRequestFullscreen)await camScreen.webkitRequestFullscreen();
+  }catch(_){}
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},
+      audio:false
+    });
+    document.getElementById('cameraVideo').srcObject=stream;
+  }catch(e){alert('カメラを起動できませんでした。\nブラウザのカメラ許可を確認してください。');stopCamera();}
+};
+function stopCamera(){
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+  document.getElementById('cameraScreen').classList.remove('open');
+  try{
+    if(document.exitFullscreen)document.exitFullscreen();
+    else if(document.webkitExitFullscreen)document.webkitExitFullscreen();
+  }catch(_){}
+}
+window.stopCamera=stopCamera;
+
+window.shootPhoto=function(){
+  const video=document.getElementById('cameraVideo');
+  const drag=document.getElementById('kanbanDrag');
+  const wrap=document.getElementById('cameraWrap');
+  const canvas=document.getElementById('shootCanvas');
+  const vw=video.videoWidth||1280,vh=video.videoHeight||720;
+  canvas.width=vw;canvas.height=vh;
+  const ctx=canvas.getContext('2d');
+  ctx.drawImage(video,0,0,vw,vh);
+
+  // 看板位置を映像座標に変換
+  const scX=vw/wrap.clientWidth,scY=vh/wrap.clientHeight;
+  const kx=drag.offsetLeft*scX;
+  const ky=drag.offsetTop*scY;
+  const kSize=drag.offsetWidth*scX;
+
+  const d=getKanbanData(),scale=kSize/160;
+  const fS=Math.max(8,9*scale),fM=Math.max(10,11*scale),fB=Math.max(18,24*scale),pad=Math.round(4*scale);
+  const topH=kSize*0.28,stageH=kSize*0.48,botH=kSize*0.24;
+
+  ctx.save();
+  ctx.fillStyle='#1a6b35';rRect(ctx,kx,ky,kSize,kSize,Math.round(4*scale));ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.35)';ctx.lineWidth=1;
+  [[kx+kSize/2,ky,kx+kSize/2,ky+topH],[kx,ky+topH,kx+kSize,ky+topH],[kx,ky+topH+stageH,kx+kSize,ky+topH+stageH]].forEach(([x1,y1,x2,y2])=>{ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();});
+  [{label:'工事件名',val:d.koujimei||'―'},{label:'工事場所',val:d.basho||'―'}].forEach((c,i)=>{
+    const cx=kx+i*(kSize/2)+pad;
+    ctx.fillStyle='rgba(255,255,255,0.7)';ctx.font=`${fS}px 'Hiragino Sans','Meiryo',sans-serif`;ctx.textAlign='left';ctx.fillText(c.label,cx,ky+fS+pad);
+    ctx.fillStyle='#fff';ctx.font=`bold ${fM}px 'Hiragino Sans','Meiryo',sans-serif`;ctx.fillText(c.val,cx,ky+topH-pad);
+  });
+  ctx.fillStyle='#fff';ctx.font=`900 ${fB}px 'Hiragino Sans','Meiryo',sans-serif`;ctx.textAlign='center';ctx.fillText(d.chuo,kx+kSize/2,ky+topH+stageH/2+fB*0.35);
+  ctx.font=`${fS}px 'Hiragino Sans','Meiryo',sans-serif`;ctx.fillStyle='rgba(255,255,255,0.85)';
+  ctx.textAlign='left';ctx.fillText(d.company||'',kx+pad,ky+topH+stageH+botH-pad);
+  ctx.textAlign='right';ctx.fillText(d.date,kx+kSize-pad,ky+topH+stageH+botH-pad);
+  ctx.strokeStyle='#fff';ctx.lineWidth=Math.round(2.5*scale);rRect(ctx,kx,ky,kSize,kSize,Math.round(4*scale));ctx.stroke();
+  ctx.restore();
+
+  const raw=canvas.toDataURL('image/jpeg',0.82);
+  const date=new Date().toISOString().slice(0,10);
+  const name=`IMG_${date.replace(/-/g,'')}_${String(camCount+1).padStart(3,'0')}.jpg`;
+  compressImage(raw,async compressed=>{
+    const p={id:'p'+Date.now()+Math.random(),siteId:activeSite,name,date,stage:pendingStage,kanbanChuo:d.chuo,src:compressed,createdAt:Date.now()};
+    await setDoc(doc(db,'photos',p.id),p);
+    camCount++;document.getElementById('camCount').textContent=camCount+'枚撮影';
+  });
+};
+
+function rRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();}
+
+window.triggerLibrary=function(){window.closeUploadModal();document.getElementById('libraryInput').value='';document.getElementById('libraryInput').click();};
+window.handleLibrary=function(input){
+  [...(input.files||[])].forEach(f=>{
+    const reader=new FileReader();
+    reader.onload=e=>compressImage(e.target.result,async compressed=>{
+      const p={id:'p'+Date.now()+Math.random(),siteId:activeSite,name:f.name,date:new Date().toISOString().slice(0,10),stage:pendingStage,src:compressed,createdAt:Date.now()};
+      await setDoc(doc(db,'photos',p.id),p);
+    });
+    reader.readAsDataURL(f);
+  });input.value='';
+};
+window.deleteSelected=async function(){
+  if(selectedIds.size===0)return;
+  if(!confirm(selectedIds.size+'枚の写真を削除しますか？'))return;
+  for(const id of selectedIds)await deleteDoc(doc(db,'photos',id));
+  selectedIds.clear();exitSelectMode();
+};
+window.deleteSinglePhoto=async function(id){
+  if(!confirm('この写真を削除しますか？'))return;
+  await deleteDoc(doc(db,'photos',id));
+};
+window.openDeleteModal=function(e,id){
+  e.stopPropagation();deletingId=id;
+  const s=sites.find(x=>x.id===id),cnt=photos.filter(p=>p.siteId===id).length;
+  document.getElementById('deleteModalMsg').textContent=`「${s.name}」を削除します。${cnt>0?`この現場の写真${cnt}枚も一緒に削除されます。`:''}よろしいですか？`;
+  document.getElementById('deleteModal').classList.add('open');
+};
+window.closeDeleteModal=function(){document.getElementById('deleteModal').classList.remove('open');deletingId=null;};
+window.confirmDeleteSite=async function(){
+  if(!deletingId)return;
+  for(const p of photos.filter(p=>p.siteId===deletingId))await deleteDoc(doc(db,'photos',p.id));
+  await deleteDoc(doc(db,'sites',deletingId));
+  if(activeSite===deletingId){
+    activeSite=null;
+    document.getElementById('photoTitle').textContent='現場を選択してください';
+    document.getElementById('uploadLabel').style.display='none';
+    document.getElementById('selectModeBtn').style.display='none';
+    document.getElementById('stageTabs').style.display='none';
+    renderGrid();exitSelectMode();
+  }
+  window.closeDeleteModal();
+};
+function openLb(id){
+  const p=photos.find(x=>x.id===id);if(!p)return;
+  document.getElementById('lbImg').src=p.src||'';
+  document.getElementById('lbImg').style.display=p.src?'':'none';
+  document.getElementById('lbInfo').textContent=`${p.kanbanChuo||STAGE_LABELS[p.stage]||''} ・ ${p.name} ・ ${p.date}`;
+  document.getElementById('lightbox').classList.add('open');
+}
+window.closeLb=function(){document.getElementById('lightbox').classList.remove('open');};
+document.getElementById('newSiteName').addEventListener('keydown',e=>{if(e.key==='Enter')window.addSite();});
+</script>
+</body>
+</html>
